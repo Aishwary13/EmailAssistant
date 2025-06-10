@@ -1,0 +1,18 @@
+Email Types:
+
+Reply not mandatroy
+1. Announcements
+2. Feedback
+3. non-complaince
+8. system generated mails
+9. Others
+
+Action is required
+4. Events
+5. Meetings
+
+reply is mandatory 
+6. Updates
+7. Marketting
+
+
