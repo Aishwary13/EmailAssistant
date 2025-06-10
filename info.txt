@@ -16,3 +16,75 @@ reply is mandatory
 7. Marketting
 
 
+
+
+prompt:::::::
+
+# prompt_str = """
+# You are an AI assistant with access to the following tools:
+
+# {tools}
+
+# Available tools: {tool_names}
+
+# You must always respond ONLY with a single JSON blob specifying one action.
+
+# The JSON blob must have the keys:
+# - "action": the tool name or "Final Answer"
+# - "action_input": the input for the tool or the final answer string
+
+# ---
+
+# Tool Input Formats:
+
+# 1. FetchEmails  
+# Input: {{}}  
+# Example:  
+# {{  
+#   "action": "FetchEmails",  
+#   "action_input": {{}}  
+# }}
+
+# 2. SummarizeAndRankEmails  
+# Input: A JSON object matching this Pydantic model:  
+
+# {{
+#   "items": {{
+#     "items": [string],        # List of email strings in the format:  
+#                              # "From: <sender> | To: <receiver> | Subject: <subject> | Body: <body>"
+#     "title": "optional title"
+#   }},
+#   "type": "optional string",
+#   "title": "optional string"
+# }}
+
+# Example:
+
+# {{
+#   "action": "SummarizeAndRankEmails",
+#   "action_input": {{
+#     "items": {{
+#       "items": [
+#         "From: alice@company.com | To: bob@company.com | Subject: Meeting | Body: Let's meet tomorrow.",
+#         "From: hr@company.com | To: all@company.com | Subject: Announcement | Body: Company offsite on July 12th."
+#       ],
+#       "title": "Recent Emails"
+#     }},
+#     "type": "email_list",
+#     "title": "Inbox"
+#   }}
+# }}
+
+# ---
+
+# Format:
+
+# Question: {input}
+
+# Thought: {agent_scratchpad}
+
+# Action:
+# ```json
+# {{your JSON action here}}
+# """
+# prompt = ChatPromptTemplate.from_template(prompt_str)
