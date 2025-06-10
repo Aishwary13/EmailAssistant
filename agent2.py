@@ -13,6 +13,8 @@ import json
 from dotenv import load_dotenv
 import os
 
+from emailcode import fetch_emails
+
 load_dotenv()
 
 # Initialize LLM
@@ -33,14 +35,16 @@ OpenAIchat = AzureChatOpenAI(
 def get_emails() -> Dict[str, List[str]]:
     """Fetch emails"""
 
-    emails = [
-        "From: alice@company.com | To: bob@company.com | Subject: Team Sync Meeting Tomorrow | Body: Hi Bob, just a reminder that we have a team sync scheduled for tomorrow at 3 PM in the main conference room. Please be prepared to discuss progress on your current tasks and blockers.",
-        "From: accounts@billing.com | To: finance@company.com | Subject: Invoice #123 for April 2025 | Body: Hello, please find attached invoice #123 for the services provided in April 2025. Kindly ensure payment is processed by June 15th. Let us know if you need any clarifications.",
-        "From: noreply@monitoring.com | To: it@company.com | Subject: Urgent: Server Downtime in Region A | Body: Monitoring system has detected an outage in Region A starting at 02:45 AM UTC. Initial diagnostics suggest a network failure. Engineering team is investigating. Updates will follow shortly.",
-        "From: hr@company.com | To: all@company.com | Subject: Company Offsite Announcement | Body: We're excited to announce a company offsite on July 12th! This will be a full-day event with team-building activities, workshops, and fun. Attendance is optional, but encouraged!",
-        "From: marketing@company.com | To: clients@company.com | Subject: New Product Launch: AI Assistant Pro | Body: We're thrilled to introduce AI Assistant Pro, our most advanced productivity tool yet! Explore the features, benefits, and introductory pricing. Click here to learn more and book a demo.",
-        "From: security@company.com | To: all@company.com | Subject: System Maintenance Scheduled This Weekend | Body: Please note that scheduled maintenance will occur on Saturday from 10 PM to Sunday 4 AM. Access to internal tools may be temporarily restricted during this time. No action is required from your end."
-    ]
+    # emails = [
+    #     "From: alice@company.com | To: bob@company.com | Subject: Team Sync Meeting Tomorrow | Body: Hi Bob, just a reminder that we have a team sync scheduled for tomorrow at 3 PM in the main conference room. Please be prepared to discuss progress on your current tasks and blockers.",
+    #     "From: accounts@billing.com | To: finance@company.com | Subject: Invoice #123 for April 2025 | Body: Hello, please find attached invoice #123 for the services provided in April 2025. Kindly ensure payment is processed by June 15th. Let us know if you need any clarifications.",
+    #     "From: noreply@monitoring.com | To: it@company.com | Subject: Urgent: Server Downtime in Region A | Body: Monitoring system has detected an outage in Region A starting at 02:45 AM UTC. Initial diagnostics suggest a network failure. Engineering team is investigating. Updates will follow shortly.",
+    #     "From: hr@company.com | To: all@company.com | Subject: Company Offsite Announcement | Body: We're excited to announce a company offsite on July 12th! This will be a full-day event with team-building activities, workshops, and fun. Attendance is optional, but encouraged!",
+    #     "From: marketing@company.com | To: clients@company.com | Subject: New Product Launch: AI Assistant Pro | Body: We're thrilled to introduce AI Assistant Pro, our most advanced productivity tool yet! Explore the features, benefits, and introductory pricing. Click here to learn more and book a demo.",
+    #     "From: security@company.com | To: all@company.com | Subject: System Maintenance Scheduled This Weekend | Body: Please note that scheduled maintenance will occur on Saturday from 10 PM to Sunday 4 AM. Access to internal tools may be temporarily restricted during this time. No action is required from your end."
+    # ]
+
+    emails = fetch_emails()
 
     return {"emails": emails}
 
