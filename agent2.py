@@ -12,10 +12,58 @@ from pydantic import BaseModel, Field
 import json 
 from dotenv import load_dotenv
 import os
+import sqlite3
 
 from emailcode import fetch_emails
 
 load_dotenv()
+
+
+
+
+# Connect to SQLite DB (will create it if not exists)
+conn = sqlite3.connect('emails.db')
+cursor = conn.cursor()
+
+# Create table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS emails (
+    ID TEXT PRIMARY KEY,
+    sender TEXT,
+    recipient TEXT,
+    subject TEXT,
+    summary TEXT,
+    category TEXT,
+    score TEXT,
+    action TEXT,
+    receivedtime text
+)
+""")
+
+conn.commit()
+
+
+
+def insert_emails_to_db(email_data):
+    with sqlite3.connect('emails.db') as conn:
+        cursor = conn.cursor()
+        for email in email_data:
+            cursor.execute("""
+            INSERT OR IGNORE INTO emails (ID, sender, recipient, subject, summary, category, score, action, receivedtime)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                email.get("ID"),
+                email.get("from"),
+                email.get("to"),
+                email.get("subject"),
+                email.get("summary"),
+                email.get("category"),
+                email.get("score"),
+                email.get("action"),
+                email.get("receivedtime")
+            ))
+        conn.commit()
+
 
 # Initialize LLM
 OpenAIchat = AzureChatOpenAI(
@@ -34,16 +82,6 @@ OpenAIchat = AzureChatOpenAI(
 
 def get_emails() -> Dict[str, List[str]]:
     """Fetch emails"""
-
-    # emails = [
-    #     "From: alice@company.com | To: bob@company.com | Subject: Team Sync Meeting Tomorrow | Body: Hi Bob, just a reminder that we have a team sync scheduled for tomorrow at 3 PM in the main conference room. Please be prepared to discuss progress on your current tasks and blockers.",
-    #     "From: accounts@billing.com | To: finance@company.com | Subject: Invoice #123 for April 2025 | Body: Hello, please find attached invoice #123 for the services provided in April 2025. Kindly ensure payment is processed by June 15th. Let us know if you need any clarifications.",
-    #     "From: noreply@monitoring.com | To: it@company.com | Subject: Urgent: Server Downtime in Region A | Body: Monitoring system has detected an outage in Region A starting at 02:45 AM UTC. Initial diagnostics suggest a network failure. Engineering team is investigating. Updates will follow shortly.",
-    #     "From: hr@company.com | To: all@company.com | Subject: Company Offsite Announcement | Body: We're excited to announce a company offsite on July 12th! This will be a full-day event with team-building activities, workshops, and fun. Attendance is optional, but encouraged!",
-    #     "From: marketing@company.com | To: clients@company.com | Subject: New Product Launch: AI Assistant Pro | Body: We're thrilled to introduce AI Assistant Pro, our most advanced productivity tool yet! Explore the features, benefits, and introductory pricing. Click here to learn more and book a demo.",
-    #     "From: security@company.com | To: all@company.com | Subject: System Maintenance Scheduled This Weekend | Body: Please note that scheduled maintenance will occur on Saturday from 10 PM to Sunday 4 AM. Access to internal tools may be temporarily restricted during this time. No action is required from your end."
-    # ]
-
     emails = fetch_emails()
 
     return {"emails": emails}
@@ -65,29 +103,50 @@ def summarize_and_rank_emails(emails_input) -> List[Dict]:
     else:
         emails = emails_input if isinstance(emails_input, list) else [emails_input]
 
-    system_prompt = """You are an expert email assistant. For each email, return JSON with:
-    - from: sender
-    - to: recipient  
-    - subject
-    - summary: 1-sentence
-    - category: Critical/High/Medium/Low
-    - action: suggested action
-    
-    Example output:
-    ```json
-    [
-        {
-            "from": "sender@example.com",
-            "to": "recipient@example.com",
-            "subject": "Subject",
-            "summary": "Brief summary",
-            "category": "High", 
-            "action": "Suggested action"
-        }
-    ]
-    ```"""
+    system_prompt = """
+        You are an expert email assistant. For each email, extract and return a JSON object with the following fields:
+
+        - ID: ID of that mail
+        - from: Email sender's address
+        - to: Email recipient's address
+        - subject: Subject line of the email
+        - summary: A brief 3 to 4 sentence summary of the email content
+        - category: One of the following — "Announcements", "Feedback", "Non-compliance", "System Generated Mails", "Others", "Events", "Meetings", "Updates", "Marketing"
+        - score: A string float between "0.00000" and "1.00000" (e.g., "0.342"). t reflects how important the email is. 
+                Score must reflect the real importance based on content, not just presence of a subject or urgency tone. Use this logic:
+                - "0.9 to 1.0": Very urgent/critical action needed (e.g., compliance issue, escalation)
+                - "0.7 to 0.89": Important but not urgent (e.g., pending approval, customer complaint)
+                - "0.4 to 0.69": Medium importance (e.g., team updates, meeting summaries)
+                - "0.1 to 0.39": Low importance (e.g., announcements, non-urgent feedback)
+                - "0.0 to 0.09": Very low importance or noise (e.g., ads, system auto-mails)
+                The score must match the mail's true urgency and relevance.
+                Internally assess the content's urgency, relevance, and required action to determine the score. Do not default to high scores.
+                Avoid assigning scores close to 1 unless the mail clearly demands urgent and high-priority action.
+
+        - action: A suggested action to take based on the email content
+        -receivedtime: timestamp
+
+        Return the output as a JSON array. 
+
+        Example output:
+        ```json
+        [
+            {
+                "ID": "ID of that mail",
+                "from": "sender@example.com",
+                "to": "recipient@example.com",
+                "subject": "Subject",
+                "summary": "Brief summary of the email content in 3 to 4 sentences.",
+                "category": "Meetings",
+                "score": "0.2315",
+                "action": "Schedule a meeting based on the proposed time."
+                "receivedtime": timestamp
+            }
+        ]
+"""
 
     email_text = "\n---\n".join(emails)
+    #print(email_text)
     
     try:
         # Create prompt with explicit JSON formatting instructions
@@ -103,6 +162,11 @@ def summarize_and_rank_emails(emails_input) -> List[Dict]:
         if json_str.startswith("```json"):
             json_str = json_str[7:-3]  # Remove markdown code block
         
+        # print("#############################")
+        # print(json_str)
+        emails_data_db = json.loads(json_str)
+        insert_emails_to_db(emails_data_db)
+
         return json.loads(json_str)
         
     except json.JSONDecodeError as e:
@@ -137,37 +201,6 @@ tools = [
 
 prompt = hub.pull("hwchase17/react")
 
-# Custom prompt for better email handling
-prompt_template = """You are a professional email assistant AI. Your job is to help manage emails efficiently.
-
-You have access to the following tools:
-
-{tools}
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Previous conversation history:
-{history}
-
-Question: {input}
-Thought:{agent_scratchpad}"""
-
-# prompt = ChatPromptTemplate.from_template(prompt_template)
-
-# Add memory
-# memory = ConversationBufferMemory(memory_key="history")
-
 # Create agent
 agent = create_react_agent(
     llm=OpenAIchat,
@@ -180,7 +213,7 @@ agent_executor = AgentExecutor(
     tools=tools,
     verbose=True,
     handle_parsing_errors="Check your output and make sure it conforms to the expected format!",
-    max_iterations=5  # Prevent infinite loops
+    max_iterations=5  
 )
 
 ###############################################
