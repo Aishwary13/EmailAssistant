@@ -2,3 +2,4 @@ emailAssistant/
 .env
 credentials.json
 __pycache__
+emails.db

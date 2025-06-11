@@ -8,6 +8,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from datetime import datetime
+
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 SEEN_EMAIL_IDS = set()
@@ -29,7 +31,7 @@ def fetch_emails():
     try:
         service = build('gmail', 'v1', credentials=creds)
         now = datetime.utcnow()
-        past = now - timedelta(hours=8)
+        past = now - timedelta(hours=20)
         after_timestamp = int(past.timestamp())
         query = f"in:inbox after:{after_timestamp}"
 
@@ -59,13 +61,16 @@ def fetch_emails():
             if not body and msg['payload']['body'].get('data'):
                 body = base64.urlsafe_b64decode(msg['payload']['body']['data'].encode()).decode()
 
+            timestamp_ms = int(msg.get('internalDate'))  
+            timestamp = datetime.fromtimestamp(timestamp_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
+
             # print("📩 New Email:")
-            # print("Subject:", subject)
+            # print(timestamp)
             # print("From:", sender)
             # print("CC", cc)
             # print("Body:", body[:200], "...\n")  # Print 1st 200 chars
 
-            temp = f"From: {sender} | CC: {cc} | Subject: {subject} | Body: {body}."
+            temp = f"ID: {msg["id"]} | From: {sender} | CC: {cc} | Subject: {subject} | Body: {body} | receivedtime: {timestamp}."
             formatEmail.append(temp)
         
         return formatEmail
