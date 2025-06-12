@@ -26,6 +26,10 @@ SEEN_EMAIL_IDS = set()
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.modify']
+
+conn = sqlite3.connect('emails.db')
+cursor = conn.cursor()
+
 ######################################################################################################
 def get_gmail_service():
     """Get authenticated Gmail service"""
@@ -70,11 +74,28 @@ def process_email(msg):
     # formatEmail.append(temp)
     return temp
 
-def fetch_new_emails():
+def fetch_new_emails(): 
     """Fetch and process unseen emails"""
     try:
         service = get_gmail_service()
-        query = f"in:inbox after:{int((datetime.utcnow() - timedelta(minutes=5)).timestamp())}"
+
+        ##### get the last time email was fetched
+        conn = sqlite3.connect('emails.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT receivedtime FROM emails ORDER BY receivedtime DESC LIMIT 1")
+        last_time_result = cursor.fetchone()
+        
+        # Set query time window (default: last 5 minutes if no records exist)
+        if last_time_result:
+            last_time = datetime.strptime(last_time_result[0], "%Y-%m-%d %H:%M:%S")
+            query_time = last_time
+        else:
+            query_time = datetime.utcnow() - timedelta(minutes=5)
+        
+        # Convert to Gmail query format
+        query_timestamp = int(query_time.timestamp())
+
+        query = f"in:inbox after:{query_timestamp}"
         
         messages = service.users().messages().list(
             userId='me',
@@ -103,9 +124,6 @@ def fetch_new_emails():
 
 
 # Connect to SQLite DB (will create it if not exists)
-conn = sqlite3.connect('emails.db')
-cursor = conn.cursor()
-
 # Create table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS emails (
