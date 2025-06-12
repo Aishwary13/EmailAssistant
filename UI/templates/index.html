@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="pt-4">
+    <h2>{{ selected_category }} Mails</h2>
+
+    <ul class="email-list list-unstyled mt-3">
+      {% for email in emails %}
+        <li>
+          <a href="/?category={{ selected_category }}&email_id={{ email[0] }}" class="text-decoration-none">
+            <strong>{{ email[2] }}</strong> — <span class="text-muted">{{ email[1] }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+
+    {% if selected_email %}
+      <div class="email-detail">
+        <h4>{{ selected_email[3] }}</h4>
+        <p><strong>From:</strong> {{ selected_email[1] }}</p>
+        <p><strong>To:</strong> {{ selected_email[2] }}</p>
+        <p><strong>Summary:</strong> {{ selected_email[4] }}</p>
+        <p><strong>Category:</strong> {{ selected_email[5] }}</p>
+        <p><strong>Score:</strong> {{ selected_email[6] }}</p>
+        <p><strong>Action:</strong> {{ selected_email[7] }}</p>
+        <p><strong>Timestamp:</strong> {{ selected_email[8] }}</p>
+        {% if selected_email|length > 9 %}
+          <p><strong>Sample Reply:</strong> {{ selected_email[9] }}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
