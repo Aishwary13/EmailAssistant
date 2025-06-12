@@ -14,11 +14,92 @@ from dotenv import load_dotenv
 import os
 import sqlite3
 
-from emailcode import fetch_emails
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from datetime import datetime, timedelta
+import base64
 
 load_dotenv()
+SEEN_EMAIL_IDS = set()
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.modify']
+######################################################################################################
+def get_gmail_service():
+    """Get authenticated Gmail service"""
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    
+    return build('gmail', 'v1', credentials=creds)
+
+def process_email(msg):
+    """Extract and format email content"""
+    headers = msg['payload']['headers']
+    subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
+    sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
+    cc = next((h['value'] for h in headers if h['name'].lower() == 'cc'), '')
+    
+    parts = msg['payload'].get('parts', [])
+    body = ""
+    for part in parts:
+        if part['mimeType'] == 'text/plain' and part['body'].get('data'):
+            data = part['body']['data']
+            body += base64.urlsafe_b64decode(data.encode()).decode()
+
+    if not body and msg['payload']['body'].get('data'):
+        body = base64.urlsafe_b64decode(msg['payload']['body']['data'].encode()).decode()
+
+    timestamp_ms = int(msg.get('internalDate'))  
+    timestamp = datetime.fromtimestamp(timestamp_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
+
+    temp = f"ID: {msg["id"]} | From: {sender} | CC: {cc} | Subject: {subject} | Body: {body} | receivedtime: {timestamp}."
+    # formatEmail.append(temp)
+    return temp
+
+def fetch_new_emails():
+    """Fetch and process unseen emails"""
+    try:
+        service = get_gmail_service()
+        query = f"in:inbox after:{int((datetime.utcnow() - timedelta(minutes=5)).timestamp())}"
+        
+        messages = service.users().messages().list(
+            userId='me',
+            q=query,
+            maxResults=10
+        ).execute().get('messages', [])
+        
+        new_emails = []
+        for msg in messages:
+            if msg['id'] not in SEEN_EMAIL_IDS:
+                SEEN_EMAIL_IDS.add(msg['id'])
+                email_data = service.users().messages().get(
+                    userId='me',
+                    id=msg['id'],
+                    format='full'
+                ).execute()
+                new_emails.append(process_email(email_data))
+        
+        return new_emails
+    except Exception as e:
+        print(f"Error fetching emails: {e}")
+        return []
 
 
+###################################################################################################
 
 
 # Connect to SQLite DB (will create it if not exists)
@@ -50,7 +131,7 @@ def insert_emails_to_db(email_data):
         for email in email_data:
             cursor.execute("""
             INSERT OR IGNORE INTO emails (ID, sender, recipient, subject, summary, category, score, action, receivedtime)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 email.get("ID"),
                 email.get("from"),
@@ -82,7 +163,7 @@ OpenAIchat = AzureChatOpenAI(
 
 def get_emails() -> Dict[str, List[str]]:
     """Fetch emails"""
-    emails = fetch_emails()
+    emails = fetch_new_emails()
 
     return {"emails": emails}
 
@@ -167,7 +248,7 @@ def summarize_and_rank_emails(emails_input) -> List[Dict]:
         emails_data_db = json.loads(json_str)
         insert_emails_to_db(emails_data_db)
 
-        return json.loads(json_str)
+        return emails_data_db
         
     except json.JSONDecodeError as e:
         print(f"Failed to parse JSON: {e}\nResponse was: {response.content}")
