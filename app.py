@@ -1,6 +1,6 @@
 
 from googleapiclient.errors import HttpError
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import base64
 import os
 from datetime import datetime, timedelta
@@ -9,7 +9,7 @@ import time
 from pyngrok import ngrok
 import os
 from dotenv import load_dotenv
-from agent2 import agent_executor,get_gmail_service
+from agent2 import agent_executor,get_gmail_service, get_emails_by_category, get_email_by_id, CATEGORIES
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -83,7 +83,23 @@ def setup_push_notifications(public_url):
 
 def start_flask_app():
     """Run Flask server"""
-    app.run(port=5000, debug=False, use_reloader=False)
+    app.run(port=5000, debug=True, use_reloader=False)
+
+
+@app.route('/')
+def index():
+    selected_category = request.args.get('category', CATEGORIES[0])
+    selected_email_id = request.args.get('email_id')
+    
+    emails = get_emails_by_category(selected_category)
+    email_detail = get_email_by_id(selected_email_id) if selected_email_id else None
+    
+    return render_template('index.html',
+                           categories=CATEGORIES,
+                           selected_category=selected_category,
+                           emails=emails,
+                           selected_email=email_detail)
+
 
 if __name__ == "__main__":
     # Start ngrok tunnel

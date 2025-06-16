@@ -129,8 +129,8 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS emails (
     ID TEXT PRIMARY KEY,
     sender TEXT,
-    recipient TEXT,
     subject TEXT,
+    body TEXT,
     summary TEXT,
     category TEXT,
     score TEXT,
@@ -148,13 +148,13 @@ def insert_emails_to_db(email_data):
         cursor = conn.cursor()
         for email in email_data:
             cursor.execute("""
-            INSERT OR IGNORE INTO emails (ID, sender, recipient, subject, summary, category, score, action, receivedtime)
+            INSERT OR IGNORE INTO emails (ID, sender, subject ,body, summary, category, score, action, receivedtime)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 email.get("ID"),
                 email.get("from"),
-                email.get("to"),
                 email.get("subject"),
+                email.get("body"),
                 email.get("summary"),
                 email.get("category"),
                 email.get("score"),
@@ -163,6 +163,25 @@ def insert_emails_to_db(email_data):
             ))
         conn.commit()
 
+
+CATEGORIES = [
+    "Announcements", "Feedback", "Non-complaince", "System Generated Mails",
+    "Others", "Events", "Meetings", "Updates", "Marketing"
+]
+
+def get_emails_by_category(category):
+    with sqlite3.connect('emails.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT ID, sender, subject, body FROM emails WHERE category = ?", (category,))
+        return cursor.fetchall()
+
+def get_email_by_id(email_id):
+    with sqlite3.connect('emails.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM emails WHERE ID = ?", (email_id,))
+        return cursor.fetchone()
+
+############################################################
 
 # Initialize LLM
 OpenAIchat = AzureChatOpenAI(
@@ -207,8 +226,8 @@ def summarize_and_rank_emails(emails_input) -> List[Dict]:
 
         - ID: ID of that mail
         - from: Email sender's address
-        - to: Email recipient's address
         - subject: Subject line of the email
+        - body: Body of the Mail
         - summary: A brief 3 to 4 sentence summary of the email content
         - category: One of the following — "Announcements", "Feedback", "Non-compliance", "System Generated Mails", "Others", "Events", "Meetings", "Updates", "Marketing"
         - score: A string float between "0.00000" and "1.00000" (e.g., "0.342"). t reflects how important the email is. 
@@ -233,8 +252,8 @@ def summarize_and_rank_emails(emails_input) -> List[Dict]:
             {
                 "ID": "ID of that mail",
                 "from": "sender@example.com",
-                "to": "recipient@example.com",
                 "subject": "Subject",
+                "body" : "Body of the mail"
                 "summary": "Brief summary of the email content in 3 to 4 sentences.",
                 "category": "Meetings",
                 "score": "0.2315",
